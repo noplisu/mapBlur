@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mapbox Sharp Circle with Blurred Background</title>
+  <title>Multiple Sharp Circles Over Blurred Map</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css" rel="stylesheet" />
@@ -13,104 +13,106 @@
       width: 100vw;
       height: 100vh;
     }
-    .map {
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    #blurred-overlay {
       position: absolute;
       top: 0; left: 0;
       width: 100%;
       height: 100%;
-    }
-    #map-blur {
-      filter: blur(8px);
-      z-index: 0;
-    }
-    #map-sharp {
-      z-index: 1;
       pointer-events: none;
-      clip-path: circle(150px at center);
+      filter: blur(2px);
+      z-index: 10;
     }
   </style>
 </head>
 <body>
   <div id="container">
-    <div id="map-blur" class="map"></div>
-    <div id="map-sharp" class="map"></div>
+    <div id="map"></div>
+    <canvas id="blurred-overlay"></canvas>
   </div>
 
   <script>
-    mapboxgl.accessToken = 'pk.eyJ1Ijoibm9wbGlzdSIsImEiOiJjbTk3Nm44YTEwNGs5MmpzZXBsOXJ5MzU1In0.p6HzPmhFnH8dQK8QMGGYKQ'; // ADD MAPBOX ACCESS TOKEN HERE
-    const center = [ -73.9851, 40.7589 ]; // Times Square
-    const blurRadius = 150;
+    mapboxgl.accessToken = 'pk.eyJ1Ijoibm9wbGlzdSIsImEiOiJjbTk3Nm44YTEwNGs5MmpzZXBsOXJ5MzU1In0.p6HzPmhFnH8dQK8QMGGYKQ';
 
-    // Blurred map
-    const mapBlur = new mapboxgl.Map({
-      container: 'map-blur',
+    const pois = [
+      [18.6664, 50.2940], // Gliwice
+      [19.9379, 50.0623],  // Kraków
+      [21.0031, 52.2290]  // Warszawa
+    ];
+
+    const map = new mapboxgl.Map({
+      container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: center,
-      zoom: 14,
-      interactive: true
+      center: pois[0],
+      zoom: 13
     });
 
-    // Sharp map
-    const mapSharp = new mapboxgl.Map({
-      container: 'map-sharp',
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: center,
-      zoom: 14,
-      interactive: true
-    });
+    const overlayCanvas = document.getElementById('blurred-overlay');
+    const ctx = overlayCanvas.getContext('2d');
 
-    function syncMaps(map1, map2) {
-      let isSyncing = false;
-
-      const syncHandler = () => {
-        if (isSyncing) return;
-        updateClipPath(map2);
-        isSyncing = true;
-        const center = map1.getCenter();
-        const zoom = map1.getZoom();
-        const pitch = map1.getPitch();
-        const bearing = map1.getBearing();
-
-        map2.jumpTo({ center, zoom, pitch, bearing });
-        isSyncing = false;
-      };
-
-      map1.on('move', syncHandler);
-      map2.on('move', syncHandler);
-    }
-    function updateClipPath(map) {
-      const pixel = map.project(center);
-      const clip = `circle(${blurRadius}px at ${pixel.x}px ${pixel.y}px)`;
-      document.getElementById('map-sharp').style.clipPath = clip;
+    function getBlurRadius() {
+      const zoom = map.getZoom();
+      // Adjust this formula as needed
+      return Math.max(30, zoom * 10); // e.g., zoom 13 = 130px
     }
 
-    // Add marker on sharp map
-    mapSharp.on('load', () => {
-      syncMaps(mapBlur, mapSharp);
+    function resizeCanvas() {
+      overlayCanvas.width = map.getCanvas().width;
+      overlayCanvas.height = map.getCanvas().height;
+    }
 
-      mapSharp.addSource('point', {
+    function updateOverlay() {
+      resizeCanvas();
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      ctx.drawImage(map.getCanvas(), 0, 0);
+
+      ctx.save();
+      // Combine all POI circles into one clip path
+      ctx.beginPath();
+      pois.forEach(poi => {
+        const pixel = map.project(poi);
+        ctx.moveTo(pixel.x + getBlurRadius(), pixel.y);
+        ctx.arc(pixel.x, pixel.y, getBlurRadius(), 0, Math.PI * 2);
+      });
+      ctx.clip();
+      // Clear all sharp areas
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      ctx.restore();
+    }
+
+    map.on('load', () => {
+      // Add POIs as a GeoJSON source for visualization
+      map.addSource('poi-source', {
         type: 'geojson',
         data: {
           type: 'FeatureCollection',
-          features: [{
+          features: pois.map(coord => ({
             type: 'Feature',
             geometry: {
               type: 'Point',
-              coordinates: center
+              coordinates: coord
             }
-          }]
+          }))
         }
       });
 
-      mapSharp.addLayer({
-        id: 'point',
+      map.addLayer({
+        id: 'poi-dot',
         type: 'circle',
-        source: 'point',
+        source: 'poi-source',
         paint: {
           'circle-radius': 6,
           'circle-color': '#007cbf',
         }
       });
+
+      updateOverlay();
+      map.on('move', updateOverlay);
+      map.on('resize', updateOverlay);
+      map.on('render', updateOverlay);
     });
   </script>
 </body>
