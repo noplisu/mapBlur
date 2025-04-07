@@ -14,6 +14,8 @@ This project demonstrates how to create a **Mapbox GL JS** map with a **blurred 
 - **Radius adjusts with zoom level** for better UX
 - Handles **canvas resizing and re-rendering** on map movement
 
+![image](https://github.com/user-attachments/assets/66848139-75db-43a6-8359-799cceb726d0)
+
 ---
 
 ## 📍 Points of Interest (POIs)
@@ -34,6 +36,8 @@ You can easily customize these in the `pois` array in the JavaScript section.
 2. The map is drawn into this canvas.
 3. Using the `ctx.clip()` method, circular regions corresponding to POIs are carved out.
 4. The `filter: blur()` CSS property is applied to the canvas, blurring everything **except** those sharp circular areas.
+
+![image](https://github.com/user-attachments/assets/24392eed-4a15-47e3-850d-7a116494bd65)
 
 ---
 
