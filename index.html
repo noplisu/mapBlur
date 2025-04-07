@@ -80,7 +80,6 @@
     }
     function updateClipPath(map) {
       const pixel = map.project(center);
-      console.log(pixel);
       const clip = `circle(${blurRadius}px at ${pixel.x}px ${pixel.y}px)`;
       document.getElementById('map-sharp').style.clipPath = clip;
     }
