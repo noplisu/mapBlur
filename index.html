@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mapbox Sharp Circle with Blurred Background</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    .map {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #map-blur {
+      filter: blur(8px);
+      z-index: 0;
+    }
+    #map-sharp {
+      z-index: 1;
+      pointer-events: none;
+      clip-path: circle(150px at center);
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="map-blur" class="map"></div>
+    <div id="map-sharp" class="map"></div>
+  </div>
+
+  <script>
+    mapboxgl.accessToken = pk.eyJ1Ijoibm9wbGlzdSIsImEiOiJjbTk3Nm44YTEwNGs5MmpzZXBsOXJ5MzU1In0.p6HzPmhFnH8dQK8QMGGYKQ'; // ADD MAPBOX ACCESS TOKEN HERE
+    const center = [ -73.9851, 40.7589 ]; // Times Square
+    const blurRadius = 150;
+
+    // Blurred map
+    const mapBlur = new mapboxgl.Map({
+      container: 'map-blur',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: center,
+      zoom: 14,
+      interactive: true
+    });
+
+    // Sharp map
+    const mapSharp = new mapboxgl.Map({
+      container: 'map-sharp',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: center,
+      zoom: 14,
+      interactive: true
+    });
+
+    function syncMaps(map1, map2) {
+      let isSyncing = false;
+
+      const syncHandler = () => {
+        if (isSyncing) return;
+        updateClipPath(map2);
+        isSyncing = true;
+        const center = map1.getCenter();
+        const zoom = map1.getZoom();
+        const pitch = map1.getPitch();
+        const bearing = map1.getBearing();
+
+        map2.jumpTo({ center, zoom, pitch, bearing });
+        isSyncing = false;
+      };
+
+      map1.on('move', syncHandler);
+      map2.on('move', syncHandler);
+    }
+    function updateClipPath(map) {
+      const pixel = map.project(center);
+      console.log(pixel);
+      const clip = `circle(${blurRadius}px at ${pixel.x}px ${pixel.y}px)`;
+      document.getElementById('map-sharp').style.clipPath = clip;
+    }
+
+    // Add marker on sharp map
+    mapSharp.on('load', () => {
+      syncMaps(mapBlur, mapSharp);
+
+      mapSharp.addSource('point', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: center
+            }
+          }]
+        }
+      });
+
+      mapSharp.addLayer({
+        id: 'point',
+        type: 'circle',
+        source: 'point',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#007cbf',
+        }
+      });
+    });
+  </script>
+</body>
+</html>
