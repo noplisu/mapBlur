@@ -23,7 +23,7 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
-      filter: blur(2px);
+      filter: blur(5px);
       z-index: 10;
     }
   </style>
@@ -43,41 +43,75 @@
       [21.0031, 52.2290]  // Warszawa
     ];
 
+    function metersToPixels(meters, poi, zoom) {
+      const lat = poi[1];
+      const dpr = window.devicePixelRatio || 1; // Get DPR (default 1)
+
+      // Center point for specific zoom
+      const center = map.project([0, lat]);
+
+      // Shift by X meters (horizontally, because longitude changes linearly)
+      const deltaLng = meters / (40075016.686 * Math.cos(lat * Math.PI / 180) / 256);
+      const offset = map.project([deltaLng, lat]);
+
+      // Pixel difference
+      return Math.abs(center.x - offset.x) * Math.pow(2, zoom - map.getZoom()) * dpr;
+    }
+
+    const baseZoom = 13;
+
     const map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
       center: pois[0],
-      zoom: 13
+      zoom: baseZoom
     });
+
+    const baseRadiusInMeters = 1609; // one mile
+    // radius in pixels for baseZoom
+    const baseRadius = metersToPixels(baseRadiusInMeters, pois[0], baseZoom);;
 
     const overlayCanvas = document.getElementById('blurred-overlay');
     const ctx = overlayCanvas.getContext('2d');
 
     function getBlurRadius() {
-      const zoom = map.getZoom();
-      // Adjust this formula as needed
-      return Math.max(30, zoom * 10); // e.g., zoom 13 = 130px
+      const zoom = map.getZoom(); // Get current zoom on map
+
+      return baseRadius * Math.pow(2, (zoom - baseZoom));
     }
 
     function resizeCanvas() {
-      overlayCanvas.width = map.getCanvas().width;
-      overlayCanvas.height = map.getCanvas().height;
+      const dpr = window.devicePixelRatio || 1; // Get DPR (default 1)
+
+      overlayCanvas.width = map.getCanvas().width * dpr;
+      overlayCanvas.height = map.getCanvas().height * dpr;
+
+      ctx.scale(dpr, dpr);
     }
 
     function updateOverlay() {
       resizeCanvas();
+
+      const dpr = window.devicePixelRatio || 1; // Get DPR
+
       ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
       ctx.drawImage(map.getCanvas(), 0, 0);
 
       ctx.save();
+
       // Combine all POI circles into one clip path
       ctx.beginPath();
       pois.forEach(poi => {
         const pixel = map.project(poi);
-        ctx.moveTo(pixel.x + getBlurRadius(), pixel.y);
-        ctx.arc(pixel.x, pixel.y, getBlurRadius(), 0, Math.PI * 2);
+
+        const correctedX = pixel.x * dpr;
+        const correctedY = pixel.y * dpr;
+
+        ctx.moveTo(correctedX + getBlurRadius(), correctedY);
+        ctx.arc(correctedX, correctedY, getBlurRadius(), 0, Math.PI * 2);
       });
       ctx.clip();
+
       // Clear all sharp areas
       ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
       ctx.restore();
@@ -113,6 +147,7 @@
       map.on('move', updateOverlay);
       map.on('resize', updateOverlay);
       map.on('render', updateOverlay);
+      map.on('zoomend', updateOverlay);
     });
   </script>
 </body>
